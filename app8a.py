@@ -1,6 +1,6 @@
-streamlit
-pandas 
-PyPDF2
+import streamlit as st
+import pandas as pd
+import PyPDF2
 from collections import Counter
 
 st.set_page_config(page_title="PDF Glossary Checker", layout="centered")
