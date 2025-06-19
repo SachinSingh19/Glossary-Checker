@@ -62,83 +62,105 @@ if st.button("Process Files"):
     else:
         try:
             # Read glossary Excel
-            df = pd.read_excel(glossary_file)
+            try:
+                df = pd.read_excel(glossary_file)
+            except Exception as e:
+                st.error(f"Error reading Excel file: {e}")
+                st.stop()
+
             if not {'word', 'translations'}.issubset(set(df.columns.str.lower())):
                 st.error("Glossary Excel must contain 'word' and 'translations' columns.")
-            else:
-                # Normalize column names
-                df.columns = [col.lower() for col in df.columns]
-                words = df['word'].astype(str).tolist()
-                translations = df['translations'].astype(str).tolist()
+                st.stop()
 
-                # Extract text from PDFs
+            # Normalize column names
+            df.columns = [col.lower() for col in df.columns]
+            words = df['word'].astype(str).tolist()
+            translations = df['translations'].astype(str).tolist()
+
+            # Extract text from PDFs
+            try:
                 source_text = extract_text_from_pdf(source_pdf)
+            except Exception as e:
+                st.error(f"Error reading source PDF: {e}")
+                st.stop()
+
+            try:
                 target_text = extract_text_from_pdf(target_pdf)
-                benchmark_text = extract_text_from_pdf(benchmark_pdf) if benchmark_pdf else ""
+            except Exception as e:
+                st.error(f"Error reading target PDF: {e}")
+                st.stop()
 
-                # Count occurrences
-                source_counts = count_terms(source_text, words)
-                target_counts = count_terms(target_text, translations)
-                benchmark_counts = count_terms(benchmark_text, translations) if benchmark_pdf else None
+            benchmark_text = ""
+            if benchmark_pdf:
+                try:
+                    benchmark_text = extract_text_from_pdf(benchmark_pdf)
+                except Exception as e:
+                    st.error(f"Error reading benchmark PDF: {e}")
+                    st.stop()
 
-                # Combine results for source and target
-                combined_results = []
+            # Count occurrences
+            source_counts = count_terms(source_text, words)
+            target_counts = count_terms(target_text, translations)
+            benchmark_counts = count_terms(benchmark_text, translations) if benchmark_pdf else None
+
+            # Combine results for source and target
+            combined_results = []
+            for w, t in zip(words, translations):
+                w_count = source_counts.get(w, 0)
+                t_count = target_counts.get(t, 0)
+                if w_count > 0 or t_count > 0:
+                    combined_results.append({
+                        'Word': w,
+                        'Count in Source': w_count,
+                        'Translation': t,
+                        'Count in Target': t_count
+                    })
+
+            # Display source-target table
+            st.subheader("Word and Translation Counts (Source & Target)")
+            st.dataframe(pd.DataFrame(combined_results))
+
+            # If benchmark uploaded, show benchmark counts table
+            if benchmark_pdf:
+                benchmark_results = []
                 for w, t in zip(words, translations):
                     w_count = source_counts.get(w, 0)
-                    t_count = target_counts.get(t, 0)
-                    if w_count > 0 or t_count > 0:
-                        combined_results.append({
+                    b_count = benchmark_counts.get(t, 0)
+                    if w_count > 0 or b_count > 0:
+                        benchmark_results.append({
                             'Word': w,
                             'Count in Source': w_count,
                             'Translation': t,
-                            'Count in Target': t_count
+                            'Count in Benchmark': b_count
                         })
+                st.subheader("Word and Translation Counts (Source & Benchmark)")
+                st.dataframe(pd.DataFrame(benchmark_results))
 
-                # Display source-target table
-                st.subheader("Word and Translation Counts (Source & Target)")
-                st.dataframe(pd.DataFrame(combined_results))
+            # Calculate KPIs for source-target
+            kpis_source_target = calculate_kpis(words, translations, source_counts, target_counts)
 
-                # If benchmark uploaded, show benchmark counts table
-                if benchmark_pdf:
-                    benchmark_results = []
-                    for w, t in zip(words, translations):
-                        w_count = source_counts.get(w, 0)
-                        b_count = benchmark_counts.get(t, 0)
-                        if w_count > 0 or b_count > 0:
-                            benchmark_results.append({
-                                'Word': w,
-                                'Count in Source': w_count,
-                                'Translation': t,
-                                'Count in Benchmark': b_count
-                            })
-                    st.subheader("Word and Translation Counts (Source & Benchmark)")
-                    st.dataframe(pd.DataFrame(benchmark_results))
+            st.subheader("KPIs (Source & Target)")
+            st.markdown(f"""
+            - **Glossary Utilization Rate:** {kpis_source_target['utilization_rate']:.2f} %  
+            - **Translation Accuracy Rate:** {kpis_source_target['accuracy_rate']:.2f} %  
+            - **Total Count Discrepancy:** {kpis_source_target['total_count_discrepancy']}  
+            - **Translation Coverage Rate:** {kpis_source_target['coverage_rate']:.2f} %  
+            - **Total Source Terms Count:** {kpis_source_target['total_source_counts']}  
+            - **Total Translated Terms Count:** {kpis_source_target['total_target_counts']}  
+            """)
 
-                # Calculate KPIs for source-target
-                kpis_source_target = calculate_kpis(words, translations, source_counts, target_counts)
-
-                st.subheader("KPIs (Source & Target)")
+            # Calculate KPIs for benchmark if available
+            if benchmark_pdf:
+                kpis_benchmark = calculate_kpis(words, translations, source_counts, benchmark_counts)
+                st.subheader("KPIs (Source & Benchmark)")
                 st.markdown(f"""
-                - **Glossary Utilization Rate:** {kpis_source_target['utilization_rate']:.2f} %  
-                - **Translation Accuracy Rate:** {kpis_source_target['accuracy_rate']:.2f} %  
-                - **Total Count Discrepancy:** {kpis_source_target['total_count_discrepancy']}  
-                - **Translation Coverage Rate:** {kpis_source_target['coverage_rate']:.2f} %  
-                - **Total Source Terms Count:** {kpis_source_target['total_source_counts']}  
-                - **Total Translated Terms Count:** {kpis_source_target['total_target_counts']}  
+                - **Glossary Utilization Rate:** {kpis_benchmark['utilization_rate']:.2f} %  
+                - **Translation Accuracy Rate:** {kpis_benchmark['accuracy_rate']:.2f} %  
+                - **Total Count Discrepancy:** {kpis_benchmark['total_count_discrepancy']}  
+                - **Translation Coverage Rate:** {kpis_benchmark['coverage_rate']:.2f} %  
+                - **Total Source Terms Count:** {kpis_benchmark['total_source_counts']}  
+                - **Total Translated Terms Count:** {kpis_benchmark['total_target_counts']}  
                 """)
 
-                # Calculate KPIs for benchmark if available
-                if benchmark_pdf:
-                    kpis_benchmark = calculate_kpis(words, translations, source_counts, benchmark_counts)
-                    st.subheader("KPIs (Source & Benchmark)")
-                    st.markdown(f"""
-                    - **Glossary Utilization Rate:** {kpis_benchmark['utilization_rate']:.2f} %  
-                    - **Translation Accuracy Rate:** {kpis_benchmark['accuracy_rate']:.2f} %  
-                    - **Total Count Discrepancy:** {kpis_benchmark['total_count_discrepancy']}  
-                    - **Translation Coverage Rate:** {kpis_benchmark['coverage_rate']:.2f} %  
-                    - **Total Source Terms Count:** {kpis_benchmark['total_source_counts']}  
-                    - **Total Translated Terms Count:** {kpis_benchmark['total_target_counts']}  
-                    """)
-
         except Exception as e:
-            st.error(f"An error occurred: {e}")
+            st.error(f"An unexpected error occurred: {e}")
