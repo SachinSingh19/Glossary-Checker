@@ -5,7 +5,7 @@ from collections import Counter
 
 st.set_page_config(page_title="PDF Glossary Checker", layout="centered")
 
-st.title("PDF Glossary Checker")
+st.title("Glossary Checker")
 
 # File uploads
 glossary_file = st.file_uploader("Upload Glossary (Excel .xlsx)", type=["xlsx"])
