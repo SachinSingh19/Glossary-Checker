@@ -148,7 +148,31 @@ if st.button("Process Files"):
             - **Total Source Terms Count:** {kpis_source_target['total_source_counts']}  
             - **Total Translated Terms Count:** {kpis_source_target['total_target_counts']}  
             """)
+           # KPI Descriptions for Source & Target
+            st.subheader("KPI Descriptions")
+            st.markdown("""
+            - **Glossary Utilization Rate:**  
+              The percentage of glossary terms that appear at least once in the target document.  
+              It indicates how many of the glossary translations are actually used in the target text.
 
+            - **Translation Accuracy Rate:**  
+              The percentage of glossary terms where the count of the source term matches exactly the count of its translation in the target document.  
+              This measures how accurately the translations reflect the source term usage frequency.
+
+            - **Total Count Discrepancy:**  
+              The absolute difference between the total occurrences of all source terms and the total occurrences of all translated terms in the target document.  
+              A lower value indicates better balance between source and target term usage.
+
+            - **Translation Coverage Rate:**  
+              The percentage of source glossary terms that have at least one corresponding translation occurrence in the target document.  
+              This shows how well the glossary terms are covered in the translation.
+
+            - **Total Source Terms Count:**  
+              The total number of occurrences of all glossary terms in the source document.
+
+            - **Total Translated Terms Count:**  
+              The total number of occurrences of all translated glossary terms in the target document.
+            """)
             # Calculate KPIs for benchmark if available
             if benchmark_pdf:
                 kpis_benchmark = calculate_kpis(words, translations, source_counts, benchmark_counts)
