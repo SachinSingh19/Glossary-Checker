@@ -156,16 +156,15 @@ if st.button("Process Files"):
               It indicates how many of the glossary translations are actually used in the target text.
 
             - **Translation Accuracy Rate:**  
-              The percentage of glossary terms where the count of the source term matches exactly the count of its translation in the target document.  
-              This measures how accurately the translations reflect the source term usage frequency.
+              Measures the percentage of accurately translated words or phrases compared to the total number of words in the document. (After reviewing the translated document, count the number of accurate translations and divide by the total number of words.)
 
             - **Total Count Discrepancy:**  
               The absolute difference between the total occurrences of all source terms and the total occurrences of all translated terms in the target document.  
               A lower value indicates better balance between source and target term usage.
 
             - **Translation Coverage Rate:**  
-              The percentage of source glossary terms that have at least one corresponding translation occurrence in the target document.  
-              This shows how well the glossary terms are covered in the translation.
+              Definition: Measures the percentage of source terms that have corresponding translations in the target document.
+              How to Measure: Count the number of source terms that have translations and divide by the total number of source terms.
 
             - **Total Source Terms Count:**  
               The total number of occurrences of all glossary terms in the source document.
