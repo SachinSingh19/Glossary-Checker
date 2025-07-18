@@ -36,22 +36,15 @@ def calculate_kpis(words, translations, source_counts, target_counts):
     total_translated_terms = len(translations)
     utilization_rate = (translated_terms_count / total_translated_terms * 100) if total_translated_terms else 0
 
-    accurate_translations = sum(1 for w, t in zip(words, translations)
-                                if source_counts.get(w, 0) == target_counts.get(t, 0) and source_counts.get(w, 0) > 0)
-    accuracy_rate = (accurate_translations / total_translated_terms * 100) if total_translated_terms else 0
+    # Removed accuracy_rate and coverage_rate calculations
 
     total_source_counts = sum(source_counts.get(w, 0) for w in words)
     total_target_counts = sum(target_counts.get(t, 0) for t in translations)
     total_count_discrepancy = abs(total_source_counts - total_target_counts)
 
-    total_source_terms = len(words)
-    coverage_rate = (translated_terms_count / total_source_terms * 100) if total_source_terms else 0
-
     return {
         'utilization_rate': utilization_rate,
-        'accuracy_rate': accuracy_rate,
         'total_count_discrepancy': total_count_discrepancy,
-        'coverage_rate': coverage_rate,
         'total_source_counts': total_source_counts,
         'total_target_counts': total_target_counts
     }
@@ -142,29 +135,21 @@ if st.button("Process Files"):
             st.subheader("KPIs (Source & Target)")
             st.markdown(f"""
             - **Glossary Utilization Rate:** {kpis_source_target['utilization_rate']:.2f} %  
-            - **Translation Accuracy Rate:** {kpis_source_target['accuracy_rate']:.2f} %  
             - **Total Count Discrepancy:** {kpis_source_target['total_count_discrepancy']}  
-            - **Translation Coverage Rate:** {kpis_source_target['coverage_rate']:.2f} %  
             - **Total Source Terms Count:** {kpis_source_target['total_source_counts']}  
             - **Total Translated Terms Count:** {kpis_source_target['total_target_counts']}  
             """)
-           # KPI Descriptions for Source & Target
+
+            # KPI Descriptions for Source & Target
             st.subheader("KPI Descriptions")
             st.markdown("""
             - **Glossary Utilization Rate:**  
               The percentage of glossary terms that appear at least once in the target document.  
               It indicates how many of the glossary translations are actually used in the target text.
 
-            - **Translation Accuracy Rate:**  
-              Measures the percentage of accurately translated words or phrases compared to the total number of words in the document. (After reviewing the translated document, count the number of accurate translations and divide by the total number of words.)
-
             - **Total Count Discrepancy:**  
               The absolute difference between the total occurrences of all source terms and the total occurrences of all translated terms in the target document.  
               A lower value indicates better balance between source and target term usage.
-
-            - **Translation Coverage Rate:**  
-              Definition: Measures the percentage of source terms that have corresponding translations in the target document.
-              How to Measure: Count the number of source terms that have translations and divide by the total number of source terms.
 
             - **Total Source Terms Count:**  
               The total number of occurrences of all glossary terms in the source document.
@@ -172,15 +157,14 @@ if st.button("Process Files"):
             - **Total Translated Terms Count:**  
               The total number of occurrences of all translated glossary terms in the target document.
             """)
+
             # Calculate KPIs for benchmark if available
             if benchmark_pdf:
                 kpis_benchmark = calculate_kpis(words, translations, source_counts, benchmark_counts)
                 st.subheader("KPIs (Source & Benchmark)")
                 st.markdown(f"""
                 - **Glossary Utilization Rate:** {kpis_benchmark['utilization_rate']:.2f} %  
-                - **Translation Accuracy Rate:** {kpis_benchmark['accuracy_rate']:.2f} %  
                 - **Total Count Discrepancy:** {kpis_benchmark['total_count_discrepancy']}  
-                - **Translation Coverage Rate:** {kpis_benchmark['coverage_rate']:.2f} %  
                 - **Total Source Terms Count:** {kpis_benchmark['total_source_counts']}  
                 - **Total Translated Terms Count:** {kpis_benchmark['total_target_counts']}  
                 """)
