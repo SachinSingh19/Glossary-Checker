@@ -30,28 +30,7 @@ def count_terms(text, terms):
     for term in terms:
         counter[term] = text.count(term.lower())
     return counter
-def calculate_kpis(words, translations, source_counts, target_counts):
-# Filter glossary entries where source term count > 0
-    source_positive_terms = [(w, t) for w, t in zip(words, translations) if source_counts.get(w, 0) > 0]
-
-    # Count how many of these have translated term count > 0
-    translated_positive_count = sum(1 for w, t in source_positive_terms if target_counts.get(t, 0) > 0)
-
-    total_source_positive = len(source_positive_terms)
-
-    utilization_rate = (translated_positive_count / total_source_positive * 100) if total_source_positive else 0
-
-    total_source_counts = sum(source_counts.get(w, 0) for w in words)
-    total_target_counts = sum(target_counts.get(t, 0) for t in translations)
-    total_count_discrepancy = abs(total_source_counts - total_target_counts)
-
-    return {
-        'utilization_rate': utilization_rate,
-        'total_count_discrepancy': total_count_discrepancy,
-        'total_source_counts': total_source_counts,
-        'total_target_counts': total_target_counts
-    }
-
+v
 if st.button("Process Files"):
     if not glossary_file or not source_pdf or not target_pdf:
         st.error("Please upload glossary, source PDF, and target PDF files.")
