@@ -30,6 +30,7 @@ def count_terms(text, terms):
     for term in terms:
         counter[term] = text.count(term.lower())
     return counter
+
 def calculate_kpis(words, translations, source_counts, target_counts):
     # Count glossary entries where source count > 0 AND translated count > 0
     utilized_terms_count = sum(
@@ -51,6 +52,31 @@ def calculate_kpis(words, translations, source_counts, target_counts):
         'total_source_counts': total_source_counts,
         'total_target_counts': total_target_counts
     }
+
+def calculate_translation_coverage_rate(words, translations, source_counts, target_counts):
+    """
+    Glossary Translation Coverage Rate:
+    
+    Measures the percentage of glossary terms that appear in the source document (source count > 0)
+    and whose translations also appear in the target document (translated count > 0).
+    
+    Formula:
+        Coverage Rate = 
+        (Number of glossary terms with source count > 0 AND translated count > 0) 
+        / (Number of glossary terms with source count > 0) * 100
+    """
+    # Filter glossary terms where source count > 0
+    source_positive_terms = [(w, t) for w, t in zip(words, translations) if source_counts.get(w, 0) > 0]
+
+    # Count how many of these have translated count > 0
+    translated_positive_count = sum(1 for w, t in source_positive_terms if target_counts.get(t, 0) > 0)
+
+    total_source_positive = len(source_positive_terms)
+
+    coverage_rate = (translated_positive_count / total_source_positive * 100) if total_source_positive else 0
+
+    return coverage_rate
+
 if st.button("Process Files"):
     if not glossary_file or not source_pdf or not target_pdf:
         st.error("Please upload glossary, source PDF, and target PDF files.")
@@ -133,10 +159,12 @@ if st.button("Process Files"):
 
             # Calculate KPIs for source-target
             kpis_source_target = calculate_kpis(words, translations, source_counts, target_counts)
+            coverage_rate = calculate_translation_coverage_rate(words, translations, source_counts, target_counts)
 
             st.subheader("KPIs (Source & Target)")
             st.markdown(f"""
             - **Glossary Utilization Rate:** {kpis_source_target['utilization_rate']:.2f} %  
+            - **Glossary Translation Coverage Rate:** {coverage_rate:.2f} %  
             - **Total Count Discrepancy:** {kpis_source_target['total_count_discrepancy']}  
             - **Total Source Terms Count:** {kpis_source_target['total_source_counts']}  
             - **Total Translated Terms Count:** {kpis_source_target['total_target_counts']}  
@@ -146,11 +174,14 @@ if st.button("Process Files"):
             st.subheader("KPI Descriptions")
             st.markdown("""
             - **Glossary Utilization Rate:**  
-           Glossary Utilization Rate is a metric that measures the extent to which glossary terms are actively used in a translated document relative to their presence in the source document. Specifically, it is defined as: The percentage of glossary entries whose source terms appear at least once in the source document and whose corresponding translated terms also appear at least once in the target (translated) document.
+              The percentage of glossary entries whose source terms appear at least once in the source document and whose corresponding translated terms also appear at least once in the target document.
+
+            - **Glossary Translation Coverage Rate:**  
+              The percentage of glossary terms that appear in the source document and whose translations also appear in the target document.  
+              This metric reflects how well the glossary terms present in the source are covered by their translations.
 
             - **Total Count Discrepancy:**  
-              The absolute difference between the total occurrences of all source terms and the total occurrences of all translated terms in the target document.  
-              A lower value indicates better balance between source and target term usage.
+              The absolute difference between the total occurrences of all source terms and the total occurrences of all translated terms in the target document.
 
             - **Total Source Terms Count:**  
               The total number of occurrences of all glossary terms in the source document.
