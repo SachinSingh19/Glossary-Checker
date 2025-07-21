@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-import PyPDF2
+import pdfplumber
+import re
 from collections import Counter
 
 st.set_page_config(page_title="PDF Glossary Checker", layout="centered")
@@ -16,30 +17,32 @@ benchmark_pdf = st.file_uploader("Upload Benchmark PDF (optional)", type=["pdf"]
 def extract_text_from_pdf(file):
     text = ""
     try:
-        reader = PyPDF2.PdfReader(file)
-        for page in reader.pages:
-            page_text = page.extract_text()
-            if page_text:
-                text += page_text + " "
+        with pdfplumber.open(file) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + " "
     except Exception as e:
         st.error(f"Error reading PDF: {e}")
     return text.lower()
 
+def normalize_text(text):
+    return text.lower().strip()
+
 def count_terms(text, terms):
     counter = Counter()
     for term in terms:
-        counter[term] = text.count(term.lower())
+        pattern = r'\b' + re.escape(term.lower()) + r'\b'
+        matches = re.findall(pattern, text)
+        counter[term] = len(matches)
     return counter
 
 def calculate_kpis(words, translations, source_counts, target_counts):
-    # Count glossary entries where source count > 0 AND translated count > 0
     utilized_terms_count = sum(
         1 for w, t in zip(words, translations)
         if source_counts.get(w, 0) > 0 and target_counts.get(t, 0) > 0
     )
-
-    total_glossary_terms = len(words)  # Total glossary entries uploaded
-
+    total_glossary_terms = len(words)
     utilization_rate = (utilized_terms_count / total_glossary_terms * 100) if total_glossary_terms else 0
 
     total_source_counts = sum(source_counts.get(w, 0) for w in words)
@@ -54,27 +57,10 @@ def calculate_kpis(words, translations, source_counts, target_counts):
     }
 
 def calculate_translation_coverage_rate(words, translations, source_counts, target_counts):
-    """
-    Glossary Translation Coverage Rate:
-    
-    Measures the percentage of glossary terms that appear in the source document (source count > 0)
-    and whose translations also appear in the target document (translated count > 0).
-    
-    Formula:
-        Coverage Rate = 
-        (Number of glossary terms with source count > 0 AND translated count > 0) 
-        / (Number of glossary terms with source count > 0) * 100
-    """
-    # Filter glossary terms where source count > 0
     source_positive_terms = [(w, t) for w, t in zip(words, translations) if source_counts.get(w, 0) > 0]
-
-    # Count how many of these have translated count > 0
     translated_positive_count = sum(1 for w, t in source_positive_terms if target_counts.get(t, 0) > 0)
-
     total_source_positive = len(source_positive_terms)
-
     coverage_rate = (translated_positive_count / total_source_positive * 100) if total_source_positive else 0
-
     return coverage_rate
 
 if st.button("Process Files"):
@@ -93,7 +79,6 @@ if st.button("Process Files"):
                 st.error("Glossary Excel must contain 'word' and 'translations' columns.")
                 st.stop()
 
-            # Normalize column names
             df.columns = [col.lower() for col in df.columns]
             words = df['word'].astype(str).tolist()
             translations = df['translations'].astype(str).tolist()
@@ -119,6 +104,13 @@ if st.button("Process Files"):
                     st.error(f"Error reading benchmark PDF: {e}")
                     st.stop()
 
+            # Normalize terms and texts
+            words = [normalize_text(w) for w in words]
+            translations = [normalize_text(t) for t in translations]
+            source_text = normalize_text(source_text)
+            target_text = normalize_text(target_text)
+            benchmark_text = normalize_text(benchmark_text) if benchmark_pdf else ""
+
             # Count occurrences
             source_counts = count_terms(source_text, words)
             target_counts = count_terms(target_text, translations)
@@ -137,11 +129,9 @@ if st.button("Process Files"):
                         'Count in Target': t_count
                     })
 
-            # Display source-target table
             st.subheader("Word and Translation Counts (Source & Target)")
             st.dataframe(pd.DataFrame(combined_results))
 
-            # If benchmark uploaded, show benchmark counts table
             if benchmark_pdf:
                 benchmark_results = []
                 for w, t in zip(words, translations):
@@ -157,7 +147,7 @@ if st.button("Process Files"):
                 st.subheader("Word and Translation Counts (Source & Benchmark)")
                 st.dataframe(pd.DataFrame(benchmark_results))
 
-            # Calculate KPIs for source-target
+            # Calculate KPIs
             kpis_source_target = calculate_kpis(words, translations, source_counts, target_counts)
             coverage_rate = calculate_translation_coverage_rate(words, translations, source_counts, target_counts)
 
@@ -170,7 +160,6 @@ if st.button("Process Files"):
             - **Total Translated Terms Count:** {kpis_source_target['total_target_counts']}  
             """)
 
-            # KPI Descriptions for Source & Target
             st.subheader("KPI Descriptions")
             st.markdown("""
             - **Glossary Utilization Rate:**  
@@ -190,7 +179,6 @@ if st.button("Process Files"):
               The total number of occurrences of all translated glossary terms in the target document.
             """)
 
-            # Calculate KPIs for benchmark if available
             if benchmark_pdf:
                 kpis_benchmark = calculate_kpis(words, translations, source_counts, benchmark_counts)
                 st.subheader("KPIs (Source & Benchmark)")
