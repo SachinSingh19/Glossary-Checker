@@ -30,7 +30,7 @@ def count_terms(text, terms):
     for term in terms:
         counter[term] = text.count(term.lower())
     return counter
-
+def calculate_kpis(words, translations, source_counts, target_counts):
 # Filter glossary entries where source term count > 0
     source_positive_terms = [(w, t) for w, t in zip(words, translations) if source_counts.get(w, 0) > 0]
 
