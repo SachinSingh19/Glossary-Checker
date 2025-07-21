@@ -147,8 +147,7 @@ if st.button("Process Files"):
             st.subheader("KPI Descriptions")
             st.markdown("""
             - **Glossary Utilization Rate:**  
-              The percentage of glossary terms that appear at least once in the target document.  
-              It indicates how many of the glossary translations are actually used in the target text.
+           Glossary Utilization Rate is a metric that measures the extent to which glossary terms are actively used in a translated document relative to their presence in the source document. Specifically, it is defined as: The percentage of glossary entries whose source terms appear at least once in the source document and whose corresponding translated terms also appear at least once in the target (translated) document.
 
             - **Total Count Discrepancy:**  
               The absolute difference between the total occurrences of all source terms and the total occurrences of all translated terms in the target document.  
