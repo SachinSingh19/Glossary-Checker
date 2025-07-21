@@ -31,17 +31,15 @@ def count_terms(text, terms):
         counter[term] = text.count(term.lower())
     return counter
 
-def calculate_kpis(words, translations, source_counts, target_counts):
-   # Filter terms where source count > 0
-    valid_terms = [(w, t) for w, t in zip(words, translations) if source_counts.get(w, 0) > 0]
+# Filter glossary entries where source term count > 0
+    source_positive_terms = [(w, t) for w, t in zip(words, translations) if source_counts.get(w, 0) > 0]
 
-    # Count how many of these valid terms have translated term count > 0
-    translated_terms_count = sum(1 for w, t in valid_terms if target_counts.get(t, 0) > 0)
-    total_translated_terms = len(valid_terms)
+    # Count how many of these have translated term count > 0
+    translated_positive_count = sum(1 for w, t in source_positive_terms if target_counts.get(t, 0) > 0)
 
-    utilization_rate = (translated_terms_count / total_translated_terms * 100) if total_translated_terms else 0
+    total_source_positive = len(source_positive_terms)
 
-    # Removed accuracy_rate and coverage_rate calculations
+    utilization_rate = (translated_positive_count / total_source_positive * 100) if total_source_positive else 0
 
     total_source_counts = sum(source_counts.get(w, 0) for w in words)
     total_target_counts = sum(target_counts.get(t, 0) for t in translations)
