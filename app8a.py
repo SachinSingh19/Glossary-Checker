@@ -32,6 +32,7 @@ def count_terms(text, terms):
     return counter
 
 def calculate_kpis(words, translations, source_counts, target_counts):
+    valid_terms = [(w, t) for w, t in zip(words, translations) if source_counts.get(w, 0) > 0]
     translated_terms_count = sum(1 for row in translations if target_counts.get(row, 0) > 0)
     total_translated_terms = len(translations)
     utilization_rate = (translated_terms_count / total_translated_terms * 100) if total_translated_terms else 0
