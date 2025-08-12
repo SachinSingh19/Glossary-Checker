@@ -37,7 +37,7 @@ def count_terms(text, terms):
         counter[term] = len(matches)
     return counter
 
-def calculate_kpis(words, translations, source_counts, target_counts):
+def calculate_kpis_fixed(words, translations, source_counts, target_counts):
     total_glossary_terms = len(words)
     source_positive_terms = [w for w in words if source_counts.get(w, 0) > 0]
     numerator = sum(
@@ -61,13 +61,6 @@ def calculate_kpis(words, translations, source_counts, target_counts):
         'total_source_counts': total_source_counts,
         'total_target_counts': total_target_counts
     }
-
-def calculate_translation_coverage_rate(words, translations, source_counts, target_counts):
-    source_positive_terms = [(w, t) for w, t in zip(words, translations) if source_counts.get(w, 0) > 0]
-    translated_positive_count = sum(1 for w, t in source_positive_terms if target_counts.get(t, 0) > 0)
-    total_source_positive = len(source_positive_terms)
-    coverage_rate = (translated_positive_count / total_source_positive * 100) if total_source_positive else 0
-    return coverage_rate
 
 def calculate_term_frequency_mismatch(words, translations, source_counts, target_counts):
     mismatch_rates = []
@@ -171,18 +164,17 @@ if st.button("Process Files"):
                 st.dataframe(pd.DataFrame(benchmark_results))
 
             # Calculate KPIs
-            kpis_source_target = calculate_kpis(words, translations, source_counts, target_counts)
-            coverage_rate = calculate_translation_coverage_rate(words, translations, source_counts, target_counts)
+            kpis = calculate_kpis_fixed(words, translations, source_counts, target_counts)
             sum_mismatch, average_mismatch = calculate_term_frequency_mismatch(words, translations, source_counts, target_counts)
             source_positive_count, target_positive_count = count_positive_terms(words, translations, source_counts, target_counts)
 
             st.subheader("KPIs (Source & Target)")
-           st.markdown(f"""
+            st.markdown(f"""
             - **Glossary Utilization Rate:** {kpis['utilization_rate']:.2f} %  
-            - **Glossary Translation Coverage Rate:** {kpis['coverage_rate']:.2f} %    
-            - **Total Count Discrepancy:** {kpis_source_target['total_count_discrepancy']}  
-            - **Total Source Terms Count:** {kpis_source_target['total_source_counts']}  
-            - **Total Translated Terms Count:** {kpis_source_target['total_target_counts']}  
+            - **Glossary Translation Coverage Rate:** {kpis['coverage_rate']:.2f} %  
+            - **Total Count Discrepancy:** {kpis['total_count_discrepancy']}  
+            - **Total Source Terms Count:** {kpis['total_source_counts']}  
+            - **Total Translated Terms Count:** {kpis['total_target_counts']}  
             - **Sum of Term Frequency Mismatch Rates:** {sum_mismatch:.2f}  
             - **Average Term Frequency Mismatch Rate:** {average_mismatch:.2f}  
             - **Number of Source Terms with Count > 0:** {source_positive_count}  
@@ -222,7 +214,7 @@ if st.button("Process Files"):
             """)
 
             if benchmark_pdf:
-                kpis_benchmark = calculate_kpis(words, translations, source_counts, benchmark_counts)
+                kpis_benchmark = calculate_kpis_fixed(words, translations, source_counts, benchmark_counts)
                 st.subheader("KPIs (Source & Benchmark)")
                 st.markdown(f"""
                 - **Glossary Utilization Rate:** {kpis_benchmark['utilization_rate']:.2f} %  
