@@ -164,7 +164,7 @@ if st.button("Process Files"):
             st.markdown("""
             - **Glossary Utilization Rate:**  
              (Number of glossary terms with both source count > 0 and target count > 0) / (Total glossary terms) × 100 
-             The percentage of glossary entries for which the source term appears at least once in the source document and the corresponding translated term also appears at least once in the target document. This KPI measures how effectively the glossary terms are being applied in the translation when they are present in the source text, In other words:
+             #The percentage of glossary entries for which the source term appears at least once in the source document and the corresponding translated term also appears at least once in the target document. This KPI measures how effectively the glossary terms are being applied in the translation when they are present in the source text, In other words:
             It reflects the proportion of glossary terms used in the source text that have been correctly utilized in the translation, indicating adherence to the glossary during the translation process.
 
             - **Glossary Translation Coverage Rate:**  
