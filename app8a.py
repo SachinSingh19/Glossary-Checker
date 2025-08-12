@@ -62,7 +62,7 @@ def calculate_translation_coverage_rate(words, translations, source_counts, targ
     total_source_positive = len(source_positive_terms)
     coverage_rate = (translated_positive_count / total_source_positive * 100) if total_source_positive else 0
     return coverage_rate
-    
+
 def calculate_term_frequency_mismatch(words, translations, source_counts, target_counts):
     mismatch_rates = []
     for w, t in zip(words, translations):
@@ -74,7 +74,12 @@ def calculate_term_frequency_mismatch(words, translations, source_counts, target
     sum_mismatch = sum(mismatch_rates)
     average_mismatch = sum_mismatch / len(mismatch_rates) if mismatch_rates else 0
     return sum_mismatch, average_mismatch
-    
+
+def count_positive_terms(words, translations, source_counts, target_counts):
+    source_positive_count = sum(1 for w in words if source_counts.get(w, 0) > 0)
+    target_positive_count = sum(1 for t in translations if target_counts.get(t, 0) > 0)
+    return source_positive_count, target_positive_count
+
 if st.button("Process Files"):
     if not glossary_file or not source_pdf or not target_pdf:
         st.error("Please upload glossary, source PDF, and target PDF files.")
@@ -163,6 +168,7 @@ if st.button("Process Files"):
             kpis_source_target = calculate_kpis(words, translations, source_counts, target_counts)
             coverage_rate = calculate_translation_coverage_rate(words, translations, source_counts, target_counts)
             sum_mismatch, average_mismatch = calculate_term_frequency_mismatch(words, translations, source_counts, target_counts)
+            source_positive_count, target_positive_count = count_positive_terms(words, translations, source_counts, target_counts)
 
             st.subheader("KPIs (Source & Target)")
             st.markdown(f"""
@@ -172,20 +178,20 @@ if st.button("Process Files"):
             - **Total Source Terms Count:** {kpis_source_target['total_source_counts']}  
             - **Total Translated Terms Count:** {kpis_source_target['total_target_counts']}  
             - **Sum of Term Frequency Mismatch Rates:** {sum_mismatch:.2f}  
-            - **Average Term Frequency Mismatch Rate:** {average_mismatch:.2f} 
+            - **Average Term Frequency Mismatch Rate:** {average_mismatch:.2f}  
+            - **Number of Source Terms with Count > 0:** {source_positive_count}  
+            - **Number of Target Terms with Count > 0:** {target_positive_count}  
             """)
 
             st.subheader("KPI Descriptions")
             st.markdown("""
             - **Glossary Utilization Rate:**  
-             (Number of glossary terms with both source count > 0 and target count > 0) / (Total glossary terms) × 100 
-             #The percentage of glossary entries for which the source term appears at least once in the source document and the corresponding translated term also appears at least once in the target document. This KPI measures how effectively the glossary terms are being applied in the translation when they are present in the source text, In other words:
-            It reflects the proportion of glossary terms used in the source text that have been correctly utilized in the translation, indicating adherence to the glossary during the translation process.
+             (Number of glossary terms with both source count > 0 and target count > 0) / (Total glossary terms) × 100  
+             The percentage of glossary entries for which the source term appears at least once in the source document and the corresponding translated term also appears at least once in the target document. This KPI measures how effectively the glossary terms are being applied in the translation when they are present in the source text. In other words, it reflects the proportion of glossary terms used in the source text that have been correctly utilized in the translation, indicating adherence to the glossary during the translation process.
 
             - **Glossary Translation Coverage Rate:**  
-             (Number of glossary terms with both source count > 0 and target count > 0) / (Number of glossary terms with source count > 0) × 100.
-             The percentage of glossary terms that appear in the source document and whose approved translations also appear in the target document, regardless of how many times they occur. This KPI measures the extent to which glossary terms present in the source text are covered by their translations in the target text, In other words:
-            It shows how comprehensively the glossary terms from the source are represented in the translation, indicating the coverage of glossary terms in the translated content.
+             (Number of glossary terms with both source count > 0 and target count > 0) / (Number of glossary terms with source count > 0) × 100  
+             The percentage of glossary terms that appear in the source document and whose approved translations also appear in the target document, regardless of how many times they occur. This KPI measures the extent to which glossary terms present in the source text are covered by their translations in the target text. In other words, it shows how comprehensively the glossary terms from the source are represented in the translation, indicating the coverage of glossary terms in the translated content.
 
             - **Total Count Discrepancy:**  
               The absolute difference between the total occurrences of all source terms and the total occurrences of all translated terms in the target document.
@@ -196,11 +202,17 @@ if st.button("Process Files"):
             - **Total Translated Terms Count:**  
               The total number of occurrences of all translated glossary terms in the target document.
 
-              - **Sum of Term Frequency Mismatch Rates:**  
+            - **Sum of Term Frequency Mismatch Rates:**  
               The total sum of the relative differences in term frequencies between the source and target texts across all glossary terms.
 
             - **Average Term Frequency Mismatch Rate:**  
               The average relative difference in term frequencies per glossary term, indicating how much, on average, the translation term frequencies deviate from the source. A lower value indicates better frequency alignment.
+
+            - **Number of Source Terms with Count > 0:**  
+              The count of glossary terms that appear at least once in the source document.
+
+            - **Number of Target Terms with Count > 0:**  
+              The count of glossary terms that appear at least once in the target document.
             """)
 
             if benchmark_pdf:
