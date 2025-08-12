@@ -79,6 +79,13 @@ def count_positive_terms(words, translations, source_counts, target_counts):
     target_positive_count = sum(1 for t in translations if target_counts.get(t, 0) > 0)
     return source_positive_count, target_positive_count
 
+def count_both_positive_terms(words, translations, source_counts, target_counts):
+    count = sum(
+        1 for w, t in zip(words, translations)
+        if source_counts.get(w, 0) > 0 and target_counts.get(t, 0) > 0
+    )
+    return count
+
 if st.button("Process Files"):
     if not glossary_file or not source_pdf or not target_pdf:
         st.error("Please upload glossary, source PDF, and target PDF files.")
@@ -169,6 +176,7 @@ if st.button("Process Files"):
             kpis = calculate_kpis_fixed(words, translations, source_counts, target_counts)
             sum_mismatch, average_mismatch = calculate_term_frequency_mismatch(words, translations, source_counts, target_counts)
             source_positive_count, target_positive_count = count_positive_terms(words, translations, source_counts, target_counts)
+            both_positive_count = count_both_positive_terms(words, translations, source_counts, target_counts)
 
             st.subheader("KPIs (Source & Target)")
             st.markdown(f"""
@@ -181,6 +189,7 @@ if st.button("Process Files"):
             - **Average Term Frequency Mismatch Rate:** {average_mismatch:.2f}  
             - **Number of Source Terms with Count > 0:** {source_positive_count}  
             - **Number of Target Terms with Count > 0:** {target_positive_count}  
+            - **Number of Terms with Both Source and Target Count > 0:** {both_positive_count}  
             """)
 
             st.subheader("KPI Descriptions")
@@ -206,13 +215,17 @@ if st.button("Process Files"):
               The total sum of the relative differences in term frequencies between the source and target texts across all glossary terms.
 
             - **Average Term Frequency Mismatch Rate:**  
-              The average relative difference in term frequencies per glossary term, indicating how much, on average, the translation term frequencies deviate from the source. A lower value indicates better frequency alignment.
-
+              The average relative difference in term frequencies per glossary term, measures how much, on average, the frequency of glossary terms in the translation deviates from the source.
+                A value of 0 means perfect frequency match; between 0 and 1 indicates moderate variation; above 1 signals significant overuse or underuse.
+                High values may reveal inconsistencies, omissions, or stylistic differences affecting translation quality.
             - **Number of Source Terms with Count > 0:**  
               The count of glossary terms that appear at least once in the source document.
 
             - **Number of Target Terms with Count > 0:**  
               The count of glossary terms that appear at least once in the target document.
+
+            - **Number of Terms with Both Source and Target Count > 0:**  
+              The count of glossary terms that appear at least once in both the source and target documents.
             """)
 
             if benchmark_pdf:
