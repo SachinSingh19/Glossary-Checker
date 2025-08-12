@@ -40,15 +40,10 @@ def count_terms(text, terms):
 def calculate_kpis_fixed(words, translations, source_counts, target_counts):
     total_glossary_terms = len(words)
     source_positive_terms = [w for w in words if source_counts.get(w, 0) > 0]
-    numerator = 0
-    for w, t in zip(words, translations):
-        s_count = source_counts.get(w, 0)
-        t_count = target_counts.get(t, 0)
-        if s_count > 0 and t_count > 0:
-            numerator += 1
-        # Debug print
-        print(f"Term: {w} / {t} - Source count: {s_count}, Target count: {t_count}")
-
+    numerator = sum(
+        1 for w, t in zip(words, translations)
+        if source_counts.get(w, 0) > 0 and target_counts.get(t, 0) > 0
+    )
     denominator_utilization = total_glossary_terms
     denominator_coverage = len(source_positive_terms)
 
@@ -58,10 +53,6 @@ def calculate_kpis_fixed(words, translations, source_counts, target_counts):
     total_source_counts = sum(source_counts.get(w, 0) for w in words)
     total_target_counts = sum(target_counts.get(t, 0) for t in translations)
     total_count_discrepancy = abs(total_source_counts - total_target_counts)
-
-    print(f"Numerator (terms with source>0 and target>0): {numerator}")
-    print(f"Total glossary terms: {total_glossary_terms}")
-    print(f"Terms with source>0: {denominator_coverage}")
 
     return {
         'utilization_rate': utilization_rate,
@@ -96,6 +87,8 @@ if st.button("Process Files"):
             # Read glossary Excel
             try:
                 df = pd.read_excel(glossary_file)
+                total_glossary_terms = len(df)  # Total terms excluding header
+                st.write(f"Total number of glossary terms (excluding header): {total_glossary_terms}")
             except Exception as e:
                 st.error(f"Error reading Excel file: {e}")
                 st.stop()
