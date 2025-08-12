@@ -62,7 +62,19 @@ def calculate_translation_coverage_rate(words, translations, source_counts, targ
     total_source_positive = len(source_positive_terms)
     coverage_rate = (translated_positive_count / total_source_positive * 100) if total_source_positive else 0
     return coverage_rate
-
+    
+def calculate_term_frequency_mismatch(words, translations, source_counts, target_counts):
+    mismatch_rates = []
+    for w, t in zip(words, translations):
+        source_count = source_counts.get(w, 0)
+        target_count = target_counts.get(t, 0)
+        denominator = source_count if source_count > 0 else 1  # avoid division by zero
+        mismatch = abs(target_count - source_count) / denominator
+        mismatch_rates.append(mismatch)
+    sum_mismatch = sum(mismatch_rates)
+    average_mismatch = sum_mismatch / len(mismatch_rates) if mismatch_rates else 0
+    return sum_mismatch, average_mismatch
+    
 if st.button("Process Files"):
     if not glossary_file or not source_pdf or not target_pdf:
         st.error("Please upload glossary, source PDF, and target PDF files.")
@@ -150,6 +162,7 @@ if st.button("Process Files"):
             # Calculate KPIs
             kpis_source_target = calculate_kpis(words, translations, source_counts, target_counts)
             coverage_rate = calculate_translation_coverage_rate(words, translations, source_counts, target_counts)
+            sum_mismatch, average_mismatch = calculate_term_frequency_mismatch(words, translations, source_counts, target_counts)
 
             st.subheader("KPIs (Source & Target)")
             st.markdown(f"""
@@ -158,6 +171,8 @@ if st.button("Process Files"):
             - **Total Count Discrepancy:** {kpis_source_target['total_count_discrepancy']}  
             - **Total Source Terms Count:** {kpis_source_target['total_source_counts']}  
             - **Total Translated Terms Count:** {kpis_source_target['total_target_counts']}  
+            - **Sum of Term Frequency Mismatch Rates:** {sum_mismatch:.2f}  
+            - **Average Term Frequency Mismatch Rate:** {average_mismatch:.2f} 
             """)
 
             st.subheader("KPI Descriptions")
@@ -180,6 +195,12 @@ if st.button("Process Files"):
 
             - **Total Translated Terms Count:**  
               The total number of occurrences of all translated glossary terms in the target document.
+
+              - **Sum of Term Frequency Mismatch Rates:**  
+              The total sum of the relative differences in term frequencies between the source and target texts across all glossary terms.
+
+            - **Average Term Frequency Mismatch Rate:**  
+              The average relative difference in term frequencies per glossary term, indicating how much, on average, the translation term frequencies deviate from the source. A lower value indicates better frequency alignment.
             """)
 
             if benchmark_pdf:
