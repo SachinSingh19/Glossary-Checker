@@ -229,13 +229,29 @@ if st.button("Process Files"):
             """)
 
             if benchmark_pdf:
-                kpis_benchmark = calculate_kpis_fixed(words, translations, source_counts, benchmark_counts)
+              kpis_benchmark = calculate_kpis_fixed(words, translations, source_counts, benchmark_counts)
+                sum_mismatch_bench, average_mismatch_bench = calculate_term_frequency_mismatch(
+                    words, translations, source_counts, benchmark_counts
+                )
+                source_positive_count_bench, benchmark_positive_count = count_positive_terms(
+                    words, translations, source_counts, benchmark_counts
+                )
+                both_positive_count_bench = count_both_positive_terms(
+                    words, translations, source_counts, benchmark_counts
+                )
+
                 st.subheader("KPIs (Source & Benchmark)")
                 st.markdown(f"""
                 - **Glossary Utilization Rate:** {kpis_benchmark['utilization_rate']:.2f} %  
+                - **Glossary Translation Coverage Rate:** {kpis_benchmark['coverage_rate']:.2f} %  
                 - **Total Count Discrepancy:** {kpis_benchmark['total_count_discrepancy']}  
                 - **Total Source Terms Count:** {kpis_benchmark['total_source_counts']}  
                 - **Total Translated Terms Count:** {kpis_benchmark['total_target_counts']}  
+                - **Sum of Term Frequency Mismatch Rates:** {sum_mismatch_bench:.2f}  
+                - **Average Term Frequency Mismatch Rate:** {average_mismatch_bench:.2f}  
+                - **Number of Source Terms with Count > 0:** {source_positive_count_bench}  
+                - **Number of Benchmark Terms with Count > 0:** {benchmark_positive_count}  
+                - **Number of Terms with Both Source and Benchmark Count > 0:** {both_positive_count_bench}  
                 """)
 
         except Exception as e:
