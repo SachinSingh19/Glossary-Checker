@@ -227,7 +227,8 @@ if st.button("Process Files"):
             - **Number of Terms with Both Source and Target Count > 0:**  
               The count of glossary terms that appear at least once in both the source and target documents.
             """)
-if benchmark_pdf:
+        
+        if benchmark_pdf:
                 benchmark_results = []
                 for w, t in zip(words, translations):
                     w_count = source_counts.get(w, 0)
