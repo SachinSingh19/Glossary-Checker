@@ -5,10 +5,7 @@ openpyxl
 pdfplumber
 sentence-transformers
 streamlit
-sentence-transformers
 openai
-pdfplumber
 python-docx
 python-pptx
 pandas
-
