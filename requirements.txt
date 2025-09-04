@@ -3,3 +3,4 @@ pandas
 PyPDF2
 openpyxl
 pdfplumber
+pip install sentence-transformers
