@@ -1,199 +1,272 @@
 import streamlit as st
-from sentence_transformers import SentenceTransformer, util
-from openai import OpenAI
-import pdfplumber
-import docx
-import difflib
-import re
 import pandas as pd
+import pdfplumber
+import re
+from collections import Counter
 
-# Load model
-@st.cache_resource(show_spinner=True)
-def load_model():
-    return SentenceTransformer('all-MiniLM-L6-v2')
+st.set_page_config(page_title="PDF Glossary Checker", layout="centered")
 
-def read_pdf_pages(file):
-    pages = []
-    with pdfplumber.open(file) as pdf:
-        for page in pdf.pages:
-            text = page.extract_text()
-            pages.append(text if text else "")
-    return pages
+st.title("Glossary Checker")
 
-def read_docx_pages(file):
-    doc = docx.Document(file)
-    paragraphs = [para.text for para in doc.paragraphs if para.text.strip() != ""]
-    return ["\n".join(paragraphs)]  # Treat whole doc as one page
+# File uploads
+glossary_file = st.file_uploader("Upload Glossary (Excel .xlsx)", type=["xlsx"])
+source_pdf = st.file_uploader("Upload Source Language PDF", type=["pdf"])
+target_pdf = st.file_uploader("Upload Target Language PDF", type=["pdf"])
+benchmark_pdf = st.file_uploader("Upload Benchmark PDF (optional)", type=["pdf"])
 
-def read_txt_pages(file):
-    text = file.getvalue().decode("utf-8")
-    return [text]  # Treat whole txt as one page
+def extract_text_from_pdf(file):
+    text = ""
+    try:
+        with pdfplumber.open(file) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + " "
+    except Exception as e:
+        st.error(f"Error reading PDF: {e}")
+    return text.lower()
 
-def read_file_pages(file):
-    if file.type == "application/pdf":
-        return read_pdf_pages(file)
-    elif file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-        return read_docx_pages(file)
-    else:
-        return read_txt_pages(file)
+def normalize_text(text):
+    return text.lower().strip()
 
-def embed_text(embedder, texts):
-    return embedder.encode(texts, convert_to_tensor=True)
+def count_terms(text, terms):
+    counter = Counter()
+    for term in terms:
+        pattern = r'\b' + re.escape(term.lower()) + r'\b'
+        matches = re.findall(pattern, text)
+        counter[term] = len(matches)
+    return counter
 
-def semantic_search(source_embedding, target_embeddings, top_k=1):
-    hits = util.semantic_search(source_embedding, target_embeddings, top_k=top_k)
-    return hits[0]
-
-def openai_quality_assessment(client, source_text, translation_text):
-    prompt = f"""
-You are a translation quality evaluator.
-Source page text: "{source_text}"
-Translation page text: "{translation_text}"
-Please provide a brief evaluation of the translation quality, highlighting any errors or issues.
-"""
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",  # or "gpt-3.5-turbo"
-        messages=[{"role": "user", "content": prompt}],
-        max_tokens=150,
-        temperature=0.5, 
+def calculate_kpis_fixed(words, translations, source_counts, target_counts):
+    total_glossary_terms = len(words)
+    source_positive_terms = [w for w in words if source_counts.get(w, 0) > 0]
+    numerator = sum(
+        1 for w, t in zip(words, translations)
+        if source_counts.get(w, 0) > 0 and target_counts.get(t, 0) > 0
     )
-    # Updated for new API structure
-    return response.choices[0].message["content"]
+    denominator_utilization = total_glossary_terms
+    denominator_coverage = len(source_positive_terms)
 
-def highlight_terms(text, glossary_terms):
-    """
-    Highlights glossary terms in green within the text.
-    """
-    # Sort terms by length descending to avoid partial overlapping replacements
-    sorted_terms = sorted(glossary_terms, key=len, reverse=True)
-    escaped_text = text
-    for term in sorted_terms:
-        if not term.strip():
-            continue
-        # Use regex for whole word matching, case-insensitive
-        pattern = re.compile(r'\b' + re.escape(term) + r'\b', re.IGNORECASE)
-        # Replace matches with highlighted span
-        escaped_text = pattern.sub(
-            lambda m: f'<span style="background-color:#d4fcdc;font-weight:bold;">{m.group(0)}</span>',
-            escaped_text
-        )
-    return escaped_text
+    utilization_rate = (numerator / denominator_utilization * 100) if denominator_utilization else 0
+    coverage_rate = (numerator / denominator_coverage * 100) if denominator_coverage else 0
 
-def highlight_differences(text1, text2):
-    """
-    Highlights similar terms in green and different terms in red.
-    Uses difflib.SequenceMatcher on word tokens.
-    Returns HTML string with colored spans.
-    """
-    def tokenize(text):
-        return re.findall(r"\w+|[^\w\s]", text, re.UNICODE)
+    total_source_counts = sum(source_counts.get(w, 0) for w in words)
+    total_target_counts = sum(target_counts.get(t, 0) for t in translations)
+    total_count_discrepancy = abs(total_source_counts - total_target_counts)
 
-    tokens1 = tokenize(text1)
-    tokens2 = tokenize(text2)
+    return {
+        'utilization_rate': utilization_rate,
+        'coverage_rate': coverage_rate,
+        'total_count_discrepancy': total_count_discrepancy,
+        'total_source_counts': total_source_counts,
+        'total_target_counts': total_target_counts
+    }
 
-    matcher = difflib.SequenceMatcher(None, tokens1, tokens2)
-    highlighted_text = []
+def calculate_term_frequency_mismatch(words, translations, source_counts, target_counts):
+    mismatch_rates = []
+    for w, t in zip(words, translations):
+        source_count = source_counts.get(w, 0)
+        target_count = target_counts.get(t, 0)
+        denominator = source_count if source_count > 0 else 1  # avoid division by zero
+        mismatch = abs(target_count - source_count) / denominator
+        mismatch_rates.append(mismatch)
+    sum_mismatch = sum(mismatch_rates)
+    average_mismatch = sum_mismatch / len(mismatch_rates) if mismatch_rates else 0
+    return sum_mismatch, average_mismatch
 
-    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
-        if tag == 'equal':
-            for token in tokens1[i1:i2]:
-                highlighted_text.append(f'<span style="background-color:#d4fcdc">{token}</span>')
-        elif tag == 'replace' or tag == 'delete':
-            for token in tokens1[i1:i2]:
-                highlighted_text.append(f'<span style="background-color:#fcdcdc">{token}</span>')
-        elif tag == 'insert':
-            # Insertions in translation ignored here
-            pass
-        # Add space after each token except punctuation
-        if i2 > i1:
-            last_token = tokens1[i2-1]
-            if re.match(r"\w", last_token):
-                highlighted_text.append(" ")
+def count_positive_terms(words, translations, source_counts, target_counts):
+    source_positive_count = sum(1 for w in words if source_counts.get(w, 0) > 0)
+    target_positive_count = sum(1 for t in translations if target_counts.get(t, 0) > 0)
+    return source_positive_count, target_positive_count
 
-    return "".join(highlighted_text).strip()
+def count_both_positive_terms(words, translations, source_counts, target_counts):
+    count = sum(
+        1 for w, t in zip(words, translations)
+        if source_counts.get(w, 0) > 0 and target_counts.get(t, 0) > 0
+    )
+    return count
 
-def main():
-    st.title("Page-Level Translation Quality Checker with Glossary Highlighting")
-
-    openai_api_key = st.text_input("Enter API key", type="password")
-    client = None
-    if openai_api_key:
-        client = OpenAI(api_key=openai_api_key)
-
-    embedder = load_model()
-
-    # Upload glossary file (optional)
-    glossary_file = st.file_uploader("Upload glossary Excel file (optional)", type=["xlsx"])
-    glossary_terms = []
-    if glossary_file:
+if st.button("Process Files"):
+    if not glossary_file or not source_pdf or not target_pdf:
+        st.error("Please upload glossary, source PDF, and target PDF files.")
+    else:
         try:
-            df = pd.read_excel(glossary_file)
-            # Assuming translations are in column B (index 1)
-            if df.shape[1] > 1:
-                glossary_terms = df.iloc[:, 1].dropna().astype(str).tolist()
-                st.success(f"Loaded {len(glossary_terms)} glossary terms from column B.")
-            else:
-                st.warning("Glossary file does not have a column B for translations.")
+            # Read glossary Excel
+            try:
+                df = pd.read_excel(glossary_file)
+                total_glossary_terms = len(df)  # Total terms excluding header
+                st.write(f"Total number of glossary terms (excluding header): {total_glossary_terms}")
+            except Exception as e:
+                st.error(f"Error reading Excel file: {e}")
+                st.stop()
+
+            if not {'word', 'translations'}.issubset(set(df.columns.str.lower())):
+                st.error("Glossary Excel must contain 'word' and 'translations' columns.")
+                st.stop()
+
+            df.columns = [col.lower() for col in df.columns]
+            words = df['word'].astype(str).tolist()
+            translations = df['translations'].astype(str).tolist()
+
+            # Extract text from PDFs
+            try:
+                source_text = extract_text_from_pdf(source_pdf)
+            except Exception as e:
+                st.error(f"Error reading source PDF: {e}")
+                st.stop()
+
+            try:
+                target_text = extract_text_from_pdf(target_pdf)
+            except Exception as e:
+                st.error(f"Error reading target PDF: {e}")
+                st.stop()
+
+            benchmark_text = ""
+            if benchmark_pdf:
+                try:
+                    benchmark_text = extract_text_from_pdf(benchmark_pdf)
+                except Exception as e:
+                    st.error(f"Error reading benchmark PDF: {e}")
+                    st.stop()
+
+            # Normalize terms and texts
+            words = [normalize_text(w) for w in words]
+            translations = [normalize_text(t) for t in translations]
+            source_text = normalize_text(source_text)
+            target_text = normalize_text(target_text)
+            benchmark_text = normalize_text(benchmark_text) if benchmark_pdf else ""
+
+            # Count occurrences
+            source_counts = count_terms(source_text, words)
+            target_counts = count_terms(target_text, translations)
+            benchmark_counts = count_terms(benchmark_text, translations) if benchmark_pdf else None
+
+            # Combine results for source and target
+            combined_results = []
+            for w, t in zip(words, translations):
+                w_count = source_counts.get(w, 0)
+                t_count = target_counts.get(t, 0)
+                if w_count > 0 or t_count > 0:
+                    combined_results.append({
+                        'Word': w,
+                        'Count in Source': w_count,
+                        'Translation': t,
+                        'Count in Target': t_count
+                    })
+
+            st.subheader("Word and Translation Counts (Source & Target)")
+            st.dataframe(pd.DataFrame(combined_results))
+
+            if benchmark_pdf:
+                benchmark_results = []
+                for w, t in zip(words, translations):
+                    w_count = source_counts.get(w, 0)
+                    b_count = benchmark_counts.get(t, 0)
+                    if w_count > 0 or b_count > 0:
+                        benchmark_results.append({
+                            'Word': w,
+                            'Count in Source': w_count,
+                            'Translation': t,
+                            'Count in Benchmark': b_count
+                        })
+                st.subheader("Word and Translation Counts (Source & Benchmark)")
+                st.dataframe(pd.DataFrame(benchmark_results))
+            if benchmark_pdf:
+                benchmark_results = []
+                for w, t in zip(words, translations):
+                    w_count = source_counts.get(w, 0)
+                    b_count = benchmark_counts.get(t, 0)
+                    if w_count > 0 or b_count > 0:
+                        benchmark_results.append({
+                            'Word': w,
+                            'Count in Source': w_count,
+                            'Translation': t,
+                            'Count in Benchmark': b_count
+                        })
+                st.subheader("Word and Translation Counts (Source & Benchmark)")
+                st.dataframe(pd.DataFrame(benchmark_results))
+
+                # KPIs for Source vs Benchmark (same as Source vs Target)
+                kpis_benchmark = calculate_kpis_fixed(words, translations, source_counts, benchmark_counts)
+                sum_mismatch_bench, average_mismatch_bench = calculate_term_frequency_mismatch(
+                    words, translations, source_counts, benchmark_counts
+                )
+                source_positive_count_bench, benchmark_positive_count = count_positive_terms(
+                    words, translations, source_counts, benchmark_counts
+                )
+                both_positive_count_bench = count_both_positive_terms(
+                    words, translations, source_counts, benchmark_counts
+                )
+
+                st.subheader("KPIs (Source & Benchmark)")
+                st.markdown(f"""
+                - **Glossary Utilization Rate:** {kpis_benchmark['utilization_rate']:.2f} %  
+                - **Glossary Translation Coverage Rate:** {kpis_benchmark['coverage_rate']:.2f} %  
+                - **Total Count Discrepancy:** {kpis_benchmark['total_count_discrepancy']}  
+                - **Total Source Terms Count:** {kpis_benchmark['total_source_counts']}  
+                - **Total Translated Terms Count:** {kpis_benchmark['total_target_counts']}  
+                - **Sum of Term Frequency Mismatch Rates:** {sum_mismatch_bench:.2f}  
+                - **Average Term Frequency Mismatch Rate:** {average_mismatch_bench:.2f}  
+                - **Number of Source Terms with Count > 0:** {source_positive_count_bench}  
+                - **Number of Benchmark Terms with Count > 0:** {benchmark_positive_count}  
+                - **Number of Terms with Both Source and Benchmark Count > 0:** {both_positive_count_bench}  
+                """)
+
+            # Calculate KPIs
+            kpis = calculate_kpis_fixed(words, translations, source_counts, target_counts)
+            sum_mismatch, average_mismatch = calculate_term_frequency_mismatch(words, translations, source_counts, target_counts)
+            source_positive_count, target_positive_count = count_positive_terms(words, translations, source_counts, target_counts)
+            both_positive_count = count_both_positive_terms(words, translations, source_counts, target_counts)
+
+            st.subheader("KPIs (Source & Target)")
+            st.markdown(f"""
+            - **Glossary Utilization Rate:** {kpis['utilization_rate']:.2f} %  
+            - **Glossary Translation Coverage Rate:** {kpis['coverage_rate']:.2f} %  
+            - **Total Count Discrepancy:** {kpis['total_count_discrepancy']}  
+            - **Total Source Terms Count:** {kpis['total_source_counts']}  
+            - **Total Translated Terms Count:** {kpis['total_target_counts']}  
+            - **Sum of Term Frequency Mismatch Rates:** {sum_mismatch:.2f}  
+            - **Average Term Frequency Mismatch Rate:** {average_mismatch:.2f}  
+            - **Number of Source Terms with Count > 0:** {source_positive_count}  
+            - **Number of Target Terms with Count > 0:** {target_positive_count}  
+            - **Number of Terms with Both Source and Target Count > 0:** {both_positive_count}  
+            """)
+
+            st.subheader("KPI Descriptions")
+            st.markdown("""
+            - **Glossary Utilization Rate:**  
+             (Number of glossary terms with both source count > 0 and target count > 0) / (Total glossary terms) × 100  
+             The percentage of glossary entries for which the source term appears at least once in the source document and the corresponding translated term also appears at least once in the target document. This KPI measures how effectively the glossary terms are being applied in the translation when they are present in the source text. In other words, it reflects the proportion of glossary terms used in the source text that have been correctly utilized in the translation, indicating adherence to the glossary during the translation process.
+
+            - **Glossary Translation Coverage Rate:**  
+             (Number of glossary terms with both source count > 0 and target count > 0) / (Number of glossary terms with source count > 0) × 100  
+             The percentage of glossary terms that appear in the source document and whose approved translations also appear in the target document, regardless of how many times they occur. This KPI measures the extent to which glossary terms present in the source text are covered by their translations in the target text. In other words, it shows how comprehensively the glossary terms from the source are represented in the translation, indicating the coverage of glossary terms in the translated content.
+
+            - **Total Count Discrepancy:**  
+              The absolute difference between the total occurrences of all source terms and the total occurrences of all translated terms in the target document.
+
+            - **Total Source Terms Count:**  
+              The total number of occurrences of all glossary terms in the source document.
+
+            - **Total Translated Terms Count:**  
+              The total number of occurrences of all translated glossary terms in the target document.
+
+            - **Sum of Term Frequency Mismatch Rates:**  
+              The total sum of the relative differences in term frequencies between the source and target texts across all glossary terms.
+
+            - **Average Term Frequency Mismatch Rate:**  
+              The average relative difference in term frequencies per glossary term, measures how much, on average, the frequency of glossary terms in the translation deviates from the source.
+                A value of 0 means perfect frequency match; between 0 and 1 indicates moderate variation; above 1 signals significant overuse or underuse.
+                High values may reveal inconsistencies, omissions, or stylistic differences affecting translation quality.
+            - **Number of Source Terms with Count > 0:**  
+              The count of glossary terms that appear at least once in the source document.
+
+            - **Number of Target Terms with Count > 0:**  
+              The count of glossary terms that appear at least once in the target document.
+
+            - **Number of Terms with Both Source and Target Count > 0:**  
+              The count of glossary terms that appear at least once in both the source and target documents.
+            """)
+
         except Exception as e:
-            st.error(f"Error reading glossary file: {e}")
-
-    source_file = st.file_uploader("Upload Benchmark document (PDF, DOCX, TXT)", type=["pdf", "docx", "txt"])
-    if source_file:
-        source_pages = read_file_pages(source_file)
-        st.success(f"Benchmark document loaded with {len(source_pages)} pages.")
-
-        translation_files = st.file_uploader("Upload translation documents (multiple allowed)", type=["pdf", "docx", "txt"], accept_multiple_files=True)
-        if translation_files:
-            translations = {}
-            for file in translation_files:
-                pages = read_file_pages(file)
-                translations[file.name] = pages
-            st.success(f"Loaded {len(translations)} translation documents.")
-
-            page_index = st.number_input(f"Select benchmark page number (1 to {len(source_pages)})", min_value=1, max_value=len(source_pages), value=1)
-            source_page_text = source_pages[page_index - 1]
-
-            source_emb = embed_text(embedder, [source_page_text])
-
-            for name, pages in translations.items():
-                st.markdown(f"### Translation: {name}")
-                translation_emb = embed_text(embedder, pages)
-                hits = semantic_search(source_emb, translation_emb, top_k=1)
-                best_hit = hits[0]
-                best_page_text = pages[best_hit['corpus_id']]
-                similarity = best_hit['score']
-
-                st.write(f"Most similar page (similarity score: {similarity:.3f}):")
-
-                # Highlight differences
-                highlighted_source_diff = highlight_differences(source_page_text, best_page_text)
-                highlighted_translation_diff = highlight_differences(best_page_text, source_page_text)
-
-                # Highlight glossary terms if glossary provided
-                if glossary_terms:
-                    highlighted_source = highlight_terms(highlighted_source_diff, glossary_terms)
-                    highlighted_translation = highlight_terms(highlighted_translation_diff, glossary_terms)
-                else:
-                    highlighted_source = highlighted_source_diff
-                    highlighted_translation = highlighted_translation_diff
-
-                col1, col2 = st.columns(2)
-
-                with col1:
-                    st.markdown(f"### Benchmark page [{page_index}]:")
-                    st.markdown(highlighted_source, unsafe_allow_html=True)
-
-                with col2:
-                    st.markdown(f"### Translation page [{best_hit['corpus_id'] + 1}]:")
-                    st.markdown(highlighted_translation, unsafe_allow_html=True)
-
-                if client:
-                    with st.spinner("Evaluating translation quality..."):
-                        assessment = openai_quality_assessment(client, source_page_text, best_page_text)
-                    st.markdown("**Quality Assessment:**")
-                    st.write(assessment)
-                else:
-                    st.info("OpenAI API key not provided. Showing similarity scores only.")
-
-if __name__ == "__main__":
-    main()
+            st.error(f"An unexpected error occurred: {e}")
