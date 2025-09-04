@@ -3,9 +3,4 @@ pandas
 PyPDF2
 openpyxl
 pdfplumber
-sentence-transformers
-streamlit
-openai
-python-docx
-python-pptx
-pandas
+
