@@ -3,7 +3,6 @@ from sentence_transformers import SentenceTransformer, util
 from openai import OpenAI
 import pdfplumber
 import docx
-import pptx
 import difflib
 import re
 import pandas as pd
@@ -26,17 +25,6 @@ def read_docx_pages(file):
     paragraphs = [para.text for para in doc.paragraphs if para.text.strip() != ""]
     return ["\n".join(paragraphs)]  # Treat whole doc as one page
 
-def read_pptx_pages(file):
-    prs = pptx.Presentation(file)
-    slides_text = []
-    for slide in prs.slides:
-        slide_text = []
-        for shape in slide.shapes:
-            if hasattr(shape, "text") and shape.text.strip() != "":
-                slide_text.append(shape.text)
-        slides_text.append("\n".join(slide_text))
-    return slides_text
-
 def read_txt_pages(file):
     text = file.getvalue().decode("utf-8")
     return [text]  # Treat whole txt as one page
@@ -46,8 +34,6 @@ def read_file_pages(file):
         return read_pdf_pages(file)
     elif file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
         return read_docx_pages(file)
-    elif file.type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
-        return read_pptx_pages(file)
     else:
         return read_txt_pages(file)
 
@@ -71,18 +57,22 @@ Please provide a brief evaluation of the translation quality, highlighting any e
         max_tokens=150,
         temperature=0.5, 
     )
+    # Updated for new API structure
     return response.choices[0].message["content"]
 
 def highlight_terms(text, glossary_terms):
     """
     Highlights glossary terms in green within the text.
     """
+    # Sort terms by length descending to avoid partial overlapping replacements
     sorted_terms = sorted(glossary_terms, key=len, reverse=True)
     escaped_text = text
     for term in sorted_terms:
         if not term.strip():
             continue
+        # Use regex for whole word matching, case-insensitive
         pattern = re.compile(r'\b' + re.escape(term) + r'\b', re.IGNORECASE)
+        # Replace matches with highlighted span
         escaped_text = pattern.sub(
             lambda m: f'<span style="background-color:#d4fcdc;font-weight:bold;">{m.group(0)}</span>',
             escaped_text
@@ -114,6 +104,7 @@ def highlight_differences(text1, text2):
         elif tag == 'insert':
             # Insertions in translation ignored here
             pass
+        # Add space after each token except punctuation
         if i2 > i1:
             last_token = tokens1[i2-1]
             if re.match(r"\w", last_token):
@@ -137,6 +128,7 @@ def main():
     if glossary_file:
         try:
             df = pd.read_excel(glossary_file)
+            # Assuming translations are in column B (index 1)
             if df.shape[1] > 1:
                 glossary_terms = df.iloc[:, 1].dropna().astype(str).tolist()
                 st.success(f"Loaded {len(glossary_terms)} glossary terms from column B.")
@@ -145,12 +137,12 @@ def main():
         except Exception as e:
             st.error(f"Error reading glossary file: {e}")
 
-    source_file = st.file_uploader("Upload Benchmark document (PDF, DOCX, PPTX, TXT)", type=["pdf", "docx", "pptx", "txt"])
+    source_file = st.file_uploader("Upload Benchmark document (PDF, DOCX, TXT)", type=["pdf", "docx", "txt"])
     if source_file:
         source_pages = read_file_pages(source_file)
         st.success(f"Benchmark document loaded with {len(source_pages)} pages.")
 
-        translation_files = st.file_uploader("Upload translation documents (multiple allowed)", type=["pdf", "docx", "pptx", "txt"], accept_multiple_files=True)
+        translation_files = st.file_uploader("Upload translation documents (multiple allowed)", type=["pdf", "docx", "txt"], accept_multiple_files=True)
         if translation_files:
             translations = {}
             for file in translation_files:
@@ -173,9 +165,11 @@ def main():
 
                 st.write(f"Most similar page (similarity score: {similarity:.3f}):")
 
+                # Highlight differences
                 highlighted_source_diff = highlight_differences(source_page_text, best_page_text)
                 highlighted_translation_diff = highlight_differences(best_page_text, source_page_text)
 
+                # Highlight glossary terms if glossary provided
                 if glossary_terms:
                     highlighted_source = highlight_terms(highlighted_source_diff, glossary_terms)
                     highlighted_translation = highlight_terms(highlighted_translation_diff, glossary_terms)
