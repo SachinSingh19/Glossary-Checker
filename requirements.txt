@@ -3,4 +3,12 @@ pandas
 PyPDF2
 openpyxl
 pdfplumber
-pip install sentence-transformers
+sentence-transformers
+streamlit
+sentence-transformers
+openai
+pdfplumber
+python-docx
+python-pptx
+pandas
+
