@@ -194,6 +194,5 @@ def main():
                     st.write(assessment)
                 else:
                     st.info("OpenAI API key not provided. Showing similarity scores only.")
-
 if __name__ == "__main__":
     main()
